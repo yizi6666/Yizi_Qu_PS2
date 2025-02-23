@@ -1,0 +1,53 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import umap
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from sklearn.preprocessing import LabelEncoder
+from transformers import BertTokenizer, BertModel
+import torch
+
+# 读取 Excel 文件
+df = pd.read_excel("/data/地区，城市农村，父母陪伴，生病.xlsx")
+
+# 处理数据: 将文本转换为数值标签
+encoder = LabelEncoder()
+for col in df.columns:
+    df[col] = encoder.fit_transform(df[col].astype(str))
+
+# 选择用于NLP分析的文本数据
+texts = df.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
+
+# 加载 BERT 模型和分词器
+tokenizer = BertTokenizer.from_pretrained("bert-base-chinese")
+model = BertModel.from_pretrained("bert-base-chinese")
+
+def get_embedding(text):
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128)
+    with torch.no_grad():
+        outputs = model(**inputs)
+    return outputs.last_hidden_state[:, 0, :].numpy().flatten()
+
+# 获取文本嵌入
+embeddings = np.array([get_embedding(text) for text in texts])
+
+# 维度降维
+pca_embeddings = PCA(n_components=2).fit_transform(embeddings)
+tsne_embeddings = TSNE(n_components=2, perplexity=5).fit_transform(embeddings)
+umap_embeddings = umap.UMAP(n_components=2).fit_transform(embeddings)
+
+# 可视化函数
+def plot_embeddings(embeddings, title):
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(x=embeddings[:, 0], y=embeddings[:, 1], palette="viridis")
+    plt.title(title)
+    plt.xlabel("Dimension 1")
+    plt.ylabel("Dimension 2")
+    plt.show()
+
+# 绘制可视化
+plot_embeddings(pca_embeddings, "PCA Visualization of Text Embeddings")
+plot_embeddings(tsne_embeddings, "t-SNE Visualization of Text Embeddings")
+plot_embeddings(umap_embeddings, "UMAP Visualization of Text Embeddings")
