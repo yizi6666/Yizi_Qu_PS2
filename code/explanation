@@ -10,7 +10,7 @@ from transformers import BertTokenizer, BertModel
 import torch
 
 # 读取 Excel 文件
-df = pd.read_excel("/data/CFPS 2014 part.xlsx")
+df = pd.read_excel("data/CFPS 2014 part.xlsx")
 
 # 处理数据: 将文本转换为数值标签
 encoder = LabelEncoder()
