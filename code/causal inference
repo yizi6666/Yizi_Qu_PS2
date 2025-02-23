@@ -1,0 +1,69 @@
+import numpy as np
+import pandas as pd
+import statsmodels.formula.api as smf
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# Simulate 1000 children with number of surviving parents as running variable
+num_children = 1000
+surviving_parents = np.random.uniform(-0.5, 1.5, num_children)  # Continuous variable around cutoff at 0
+
+# Define treatment: Children with surviving parents < 0.5 are considered full orphans (receive support)
+orphanage_support = (surviving_parents < 0.5).astype(int)
+
+# Simulate child sickness rate as a percentage (continuous, not binary)
+# Assume orphans with government support have lower sickness rates
+child_sickness_rate = (
+    50 - 20 * orphanage_support + 10 * (surviving_parents - 0.5) + np.random.normal(0, 5, num_children)
+)
+
+# Convert to probability scale (0-100%)
+child_sickness_rate = np.clip(child_sickness_rate, 0, 100)
+
+# Create DataFrame
+rd_df = pd.DataFrame({
+    'surviving_parents': surviving_parents,
+    'orphanage_support': orphanage_support,
+    'child_sickness_rate': child_sickness_rate
+})
+
+# Define cutoff
+cutoff = 0.5  # Transition from parental presence to orphan status
+
+# Separate data for regression
+below_cutoff = rd_df[rd_df['surviving_parents'] >= cutoff]
+above_cutoff = rd_df[rd_df['surviving_parents'] < cutoff]
+
+# Fit separate linear models on both sides of the cutoff
+model_below = smf.ols("child_sickness_rate ~ surviving_parents", data=below_cutoff).fit()
+model_above = smf.ols("child_sickness_rate ~ surviving_parents", data=above_cutoff).fit()
+
+# Generate fitted values for plotting
+x_below = np.linspace(cutoff, 1.5, 100)
+x_above = np.linspace(-0.5, cutoff, 100)
+
+y_below = model_below.predict(pd.DataFrame({"surviving_parents": x_below}))
+y_above = model_above.predict(pd.DataFrame({"surviving_parents": x_above}))
+
+# Plot RD visualization
+plt.figure(figsize=(8, 6))
+sns.scatterplot(x=rd_df['surviving_parents'], y=rd_df['child_sickness_rate'], alpha=0.5, label="Individual Data Points")
+
+# Plot fitted regression lines
+plt.plot(x_below, y_below, color="blue", label="Fitted Line (Above Cutoff)")
+plt.plot(x_above, y_above, color="green", label="Fitted Line (Below Cutoff)")
+
+# Add cutoff line
+plt.axvline(cutoff, color='red', linestyle="--", label="Cutoff at 0 Surviving Parents")
+
+# Labels and title
+plt.xlabel("Number of Surviving Parents (0 = Orphan, 1 = One Parent)")
+plt.ylabel("Child Sickness Rate (%)")
+plt.legend()
+plt.title("Regression Discontinuity Plot: Orphanage Support & Child Health")
+
+# Show plot
+plt.show()
